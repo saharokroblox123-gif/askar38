@@ -108,6 +108,7 @@ jobs:
           set -euo pipefail
           PROJECT_DIR="$GITHUB_WORKSPACE/LAST_SIGNAL"
           sed -i '/^\[rendering\]$/a textures/vram_compression/import_etc2_astc=true' "$PROJECT_DIR/project.godot"
+          sed -i 's/^architectures\/armeabi-v7a=false$/architectures\/armeabi-v7a=true/' "$PROJECT_DIR/export_presets.cfg"
           mkdir -p "$PROJECT_DIR/build"
           "$GODOT_BIN" --headless --editor --path "$PROJECT_DIR" --quit
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" \
@@ -115,6 +116,7 @@ jobs:
           test -s "$PROJECT_DIR/build/LAST_SIGNAL.apk"
           unzip -t "$PROJECT_DIR/build/LAST_SIGNAL.apk" >/dev/null
           unzip -l "$PROJECT_DIR/build/LAST_SIGNAL.apk" | grep -q 'AndroidManifest.xml'
+          "$ANDROID_HOME/build-tools/35.0.1/aapt" dump badging "$PROJECT_DIR/build/LAST_SIGNAL.apk" | grep -E "^(sdkVersion|targetSdkVersion|native-code):"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
