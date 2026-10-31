@@ -32,9 +32,13 @@ write(p, s.replace(old, new, 1))
 p = "export_presets.cfg"
 s = read(p)
 s = s.replace("architectures/armeabi-v7a=false", "architectures/armeabi-v7a=true", 1)
-if "screen/orientation=1" not in s:
-    s = s.replace("screen/immersive_mode=true", "screen/immersive_mode=true\nscreen/orientation=1", 1)
-s = s.replace("version/code=1", "version/code=2", 1).replace('version/name="0.1.0"', 'version/name="0.1.1"', 1)
+# Android ActivityInfo.SCREEN_ORIENTATION_PORTRAIT is 2; 1 means LANDSCAPE.
+if re.search(r"(?m)^screen/orientation=", s):
+    s = re.sub(r"(?m)^screen/orientation=\d+\s*$", "screen/orientation=2", s)
+else:
+    s = s.replace("screen/immersive_mode=true", "screen/immersive_mode=true\nscreen/orientation=2", 1)
+s = re.sub(r"(?m)^version/code=\d+\s*$", "version/code=3", s, count=1)
+s = re.sub(r'(?m)^version/name="[^"]+"\s*$', 'version/name="0.1.2"', s, count=1)
 write(p, s)
 
 # Door panel is itself a fallback RayCast3D interaction target.
@@ -344,8 +348,8 @@ if not re.search(r"(?m)^window/size/viewport_height=1280\s*$", project_text):
     errors.append("Project viewport height must be 1280 for portrait layout")
 if not re.search(r"(?m)^window/handheld/orientation=1\s*$", project_text):
     errors.append("Project handheld orientation must be portrait (1)")
-if not re.search(r"(?m)^screen/orientation=1\s*$", preset_text):
-    errors.append("Android export preset must explicitly request portrait orientation")
+if not re.search(r"(?m)^screen/orientation=2\s*$", preset_text):
+    errors.append("Android export preset must explicitly request portrait orientation (Android value 2)")
 if not re.search(r"(?m)^architectures/armeabi-v7a=true\s*$", preset_text):
     errors.append("Android export preset must include ARMv7 for older Galaxy A13 variants")
 if 'exit_door_body.add_to_group("exit_door")' not in main_script:
