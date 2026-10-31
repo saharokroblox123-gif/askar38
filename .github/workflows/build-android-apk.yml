@@ -99,6 +99,9 @@ jobs:
           export/android/debug_keystore_pass = "android"
           SETTINGSEOF
 
+      - name: Apply portrait and door gameplay fixes
+        run: python3 .github/overlay/apply_fixes.py "$GITHUB_WORKSPACE/LAST_SIGNAL"
+
       - name: Validate project references
         run: python3 LAST_SIGNAL/tools/validate_project.py
 
