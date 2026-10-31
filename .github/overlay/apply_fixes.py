@@ -376,3 +376,50 @@ s = s.replace("- [ ] Проверить сцены/скрипты.", "- [ ] Пр
 write(p, s)
 
 print("Applied LAST SIGNAL v0.1.1 portrait + door fixes.")
+
+
+# Stage 2: add The Watcher enemy and its sensory AI.
+monster_source = Path(__file__).with_name("monster.gd").read_text(encoding="utf-8")
+write("scripts/monster.gd", monster_source)
+
+p = "scripts/main.gd"
+s = read(p)
+spawn_block = """\tvar player := PLAYER_SCENE.instantiate() as CharacterBody3D
+\tplayer.position = Vector3(0, 0, 4.0)
+\tadd_child(player)"""
+watcher_block = spawn_block + """
+\t# The Watcher patrols the far corridor and reacts to sight and sound.
+\tvar watcher := CharacterBody3D.new()
+\twatcher.set_script(load("res://scripts/monster.gd"))
+\twatcher.position = Vector3(0, 0, -20.5)
+\tadd_child(watcher)"""
+if 'load("res://scripts/monster.gd")' not in s:
+    if spawn_block not in s:
+        raise SystemExit("Player spawn block was not found for The Watcher.")
+    s = s.replace(spawn_block, watcher_block, 1)
+write(p, s)
+
+p = "scripts/player.gd"
+s = read(p)
+if 'add_to_group("player")' not in s:
+    s = s.replace("func _ready() -> void:\n", 'func _ready() -> void:\n\tadd_to_group("player")\n', 1)
+write(p, s)
+
+p = "tools/validate_project.py"
+s = read(p)
+if "The Watcher must spawn" not in s:
+    monster_checks = '''
+monster_script = (ROOT / "scripts/monster.gd").read_text(encoding="utf-8")
+if 'load("res://scripts/monster.gd")' not in main_script:
+    errors.append("The Watcher must spawn in the main scene")
+if "State.CHASE" not in monster_script or "func _can_see_player()" not in monster_script:
+    errors.append("The Watcher must include sight-based chase AI")
+if "func _hears_player()" not in monster_script or "HEARING_CROUCH" not in monster_script:
+    errors.append("The Watcher must react to player noise and crouching")
+if "func _catch_player()" not in monster_script:
+    errors.append("The Watcher must include a catch/game-over state")
+'''
+    s = s.replace("if errors:\n", monster_checks + "\nif errors:\n", 1)
+write(p, s)
+
+print("Applied LAST SIGNAL stage 2: The Watcher enemy AI.")
