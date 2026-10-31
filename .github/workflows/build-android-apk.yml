@@ -1,0 +1,122 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore project archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/source/LAST_SIGNAL.part*.b64 | base64 --decode > "$RUNNER_TEMP/last_signal.tar.xz"
+          tar -tJf "$RUNNER_TEMP/last_signal.tar.xz" >/dev/null
+          tar -xJf "$RUNNER_TEMP/last_signal.tar.xz" -C "$GITHUB_WORKSPACE"
+          test -f "$GITHUB_WORKSPACE/LAST_SIGNAL/project.godot"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android export packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null
+          set -o pipefail
+          sdkmanager \
+            "platform-tools" \
+            "build-tools;35.0.1" \
+            "platforms;android-35" \
+            "cmdline-tools;latest" \
+            "cmake;3.10.2.4988404" \
+            "ndk;28.1.13356709"
+
+      - name: Download Godot 4.7.2 and export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="4.7.2"
+          RELEASE="4.7.2-stable"
+          mkdir -p "$RUNNER_TEMP/godot" "$RUNNER_TEMP/templates"
+          curl -fL --retry 3 \
+            "https://github.com/godotengine/godot-builds/releases/download/${RELEASE}/Godot_v${VERSION}-stable_linux.x86_64.zip" \
+            -o "$RUNNER_TEMP/godot.zip"
+          curl -fL --retry 3 \
+            "https://github.com/godotengine/godot-builds/releases/download/${RELEASE}/Godot_v${VERSION}-stable_export_templates.tpz" \
+            -o "$RUNNER_TEMP/templates.tpz"
+          unzip -oq "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          unzip -oq "$RUNNER_TEMP/templates.tpz" -d "$RUNNER_TEMP/templates"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot" -maxdepth 1 -type f -name 'Godot_v*linux.x86_64' -print -quit)"
+          test -n "$GODOT_BIN"
+          chmod +x "$GODOT_BIN"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          TEMPLATE_SOURCE="$RUNNER_TEMP/templates/templates"
+          if [[ ! -d "$TEMPLATE_SOURCE" ]]; then TEMPLATE_SOURCE="$RUNNER_TEMP/templates"; fi
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${VERSION}.stable"
+          mkdir -p "$TEMPLATE_DIR"
+          cp -a "$TEMPLATE_SOURCE/." "$TEMPLATE_DIR/"
+          printf '%s' "${VERSION}.stable" > "$TEMPLATE_DIR/version.txt"
+
+      - name: Configure Godot Android signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/godot" "$HOME/.android"
+          keytool -genkeypair -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -validity 9999 \
+            -dname "CN=Android Debug,O=LAST SIGNAL,C=US" \
+            -deststoretype pkcs12
+          cat > "$HOME/.config/godot/editor_settings-4.7.tres" <<SETTINGSEOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/android_sdk_path = "${ANDROID_HOME}"
+          export/android/debug_keystore = "${HOME}/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          SETTINGSEOF
+
+      - name: Validate project references
+        run: python3 LAST_SIGNAL/tools/validate_project.py
+
+      - name: Import and export APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_DIR="$GITHUB_WORKSPACE/LAST_SIGNAL"
+          mkdir -p "$PROJECT_DIR/build"
+          "$GODOT_BIN" --headless --editor --path "$PROJECT_DIR" --quit
+          "$GODOT_BIN" --headless --path "$PROJECT_DIR" \
+            --export-debug "Android" "$PROJECT_DIR/build/LAST_SIGNAL.apk"
+          test -s "$PROJECT_DIR/build/LAST_SIGNAL.apk"
+          unzip -t "$PROJECT_DIR/build/LAST_SIGNAL.apk" >/dev/null
+          unzip -l "$PROJECT_DIR/build/LAST_SIGNAL.apk" | grep -q 'AndroidManifest.xml'
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LAST_SIGNAL-Android-APK
+          path: LAST_SIGNAL/build/LAST_SIGNAL.apk
+          if-no-files-found: error
+          retention-days: 14
