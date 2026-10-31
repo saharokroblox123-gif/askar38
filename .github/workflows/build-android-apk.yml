@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           PROJECT_DIR="$GITHUB_WORKSPACE/LAST_SIGNAL"
-          sed -i '/^\\[rendering\\]$/a textures/vram_compression/import_etc2_astc=true' "$PROJECT_DIR/project.godot"
+          sed -i '/^\[rendering\]$/a textures/vram_compression/import_etc2_astc=true' "$PROJECT_DIR/project.godot"
           mkdir -p "$PROJECT_DIR/build"
           "$GODOT_BIN" --headless --editor --path "$PROJECT_DIR" --quit
           "$GODOT_BIN" --headless --path "$PROJECT_DIR" \
