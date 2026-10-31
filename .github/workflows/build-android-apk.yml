@@ -121,7 +121,8 @@ jobs:
           unzip -l "$PROJECT_DIR/build/LAST_SIGNAL.apk" | grep -q 'AndroidManifest.xml'
           "$ANDROID_HOME/build-tools/35.0.1/aapt" dump badging "$PROJECT_DIR/build/LAST_SIGNAL.apk" | grep -E "^(sdkVersion|targetSdkVersion|native-code):"
           "$ANDROID_HOME/build-tools/35.0.1/aapt" dump xmltree "$PROJECT_DIR/build/LAST_SIGNAL.apk" AndroidManifest.xml > "$RUNNER_TEMP/manifest.xmltree"
-          grep -q 'screenOrientation.*0x2' "$RUNNER_TEMP/manifest.xmltree"
+          grep -i 'screenOrientation' "$RUNNER_TEMP/manifest.xmltree"
+          grep -q 'screenOrientation.*0x7' "$RUNNER_TEMP/manifest.xmltree"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
